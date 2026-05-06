@@ -1,0 +1,6 @@
+.vscode/
+
+*.tgz
+*.zip
+
+*.pyc

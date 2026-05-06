@@ -1,129 +1,132 @@
-# CP1: Vize projektu – Online šachy
-## Zvolené téma práce
+# CP1: Project Vision – Online Chess
+## Chosen Project Topic
 
-Vývoj desktopové aplikace pro klasickou strategickou deskovou hru Šachy v jazyce Java s využitím frameworku JavaFX, s důrazem na implementaci klient-server architektury a využití polymorfismu v návrhu herní logiky.
+Development of a desktop application for the classic strategic board game Chess in Java using the JavaFX framework, with an emphasis on implementing a client-server architecture and utilizing polymorphism in the game logic design.
 
-## Manažerské shrnutí
+## Executive Summary
 
-Cílem tohoto projektu je vytvořit plně hratelnou digitální adaptaci populární deskové hry Šachy. Aplikace nabídne uživateli možnost hrát proti dalšímu hráči na stejném zařízení (lokální hot-seat mód), nebo po síti proti jinému uživateli. Hlavní přidanou hodnotou projektu po programátorské stránce bude objektový návrh umožňující snadné řízení hry pomocí `GameControlleru`, využití polymorfismu pro tahy jednotlivých figurek a vícevláknová síťová architektura, kde server dokáže spravovat více herních relací (`GameSession`) současně. Hra bude obsahovat přehledné grafické uživatelské rozhraní, které intuitivně provede hráče celým zápasem.
+The goal of this project is to create a fully playable digital adaptation of the Chess. The application will offer the user the ability to play against another player on the same device (local), or over the network against another user. The main programming added value of the project will be the easy game management using a `GameController`, the use of polymorphism for the moves of individual pieces, and a multi-threaded architecture where the server can manage multiple game sessions (`GameSession`) simultaneously. The game will feature a clear graphical user interface that intuitively guides players through the entire match.
 
-## Podrobný popis funkcionalit
-### Průběh a cíl hry
+## Detailed Description of Features
+### Game Flow and Objective
 
-Hraje se na čtvercové desce o velikosti 8x8 polí. Hra plně implementuje standardní pravidla FIDE:
+The game is played on a square 8x8 board. The game fully implements standard FIDE rules:
 
-- **Standardní tahy**: Každá figurka se pohybuje podle svých specifických pravidel.
+- **Standard moves**: Each piece moves according to its specific rules.
 
-- **Rošáda**: Krátká i dlouhá, zakázána pokud král nebo věž již táhly, nebo pokud jsou dotčená pole napadena.
+- **Castling**: Short and long, prohibited if the king or rook has already moved, or if the involved squares are under attack.
 
-- **Proměna pěšce**: Pěšec na poslední řadě se promění v dámu, věž, střelce nebo koně dle volby hráče.
+- **Pawn promotion**: A pawn reaching the last rank is promoted to a queen, rook, bishop, or knight, based on the player's choice.
 
-- **Šach a Mat**: Detekce napadení krále a znemožnění tahů, které by krále ohrozily. Mat ukončuje hru.
+- **Check and Checkmate**: Detection of threats to the king and prevention of moves that would endanger the king. Checkmate ends the game.
 
-- **Remíza a Pat**: Automatická detekce patu (hráč nemá legální tah, ale není v šachu) a možnost nabídnout/přijmout remízu soupeřem.
+- **Draw and Stalemate**: Automatic detection of stalemate (the player has no legal moves but is not in check) and the option to offer/accept a draw from the opponent.
 
-*(Pozn.: Pravidlo En passant a pravidlo 50 tahů budou implementována pouze v případě dostatku času).*
+*(Note: The En passant rule and the 50-move rule will be implemented only if time permits).*
 
-### Síť a herní módy
+### Network and Game Modes
 
-- Multiplayer (hlavní režim)
-- Klient se připojuje na server pomocí IP adresy a portu
-- Server páruje hráče do jedné herní relace (`GameSession`)
-- Každá relace běží odděleně → využití více vláken
+- Multiplayer (main mode)
 
-#### Komunikace a její protokol:
+- Client connects to the server using an IP address and port
+
+- Server pairs players into a single game session (`GameSession`)
+
+- Each session runs separately → utilization of multiple threads
+
+#### Communication and its Protocol:
 
 - Java Sockets
-- Přenos objektů jako např. tahy, stav hry
+
+- Transfer of objects such as moves, game state
 
 ```
-[Klient]                        [Server]
+[Client]                        [Server]
    |--- ConnectMessage --------->|
    |<-- WaitingForOpponent ------|
-   |                             | (druhý hráč se připojí)
+   |                             | (second player connects)
    |<-- GameStartMessage --------|
    |                             |
    |--- MoveMessage ------------>|
-   |<-- GameStateMessage --------|  (nebo ErrorMessage)
-   |<-- GameStateMessage --------|  (tah soupeře)
+   |<-- GameStateMessage --------|  (or ErrorMessage)
+   |<-- GameStateMessage --------|  (opponent's move)
    |                             |
    |--- ResignMessage ---------->|
    |<-- GameOverMessage ---------|
 ```
 
-### Herní módy a vlastnosti hráčů
+#### Game Modes and Player Characteristics
 
-Aplikace poběží ve dvou základních režimech:
+The application will run in two basic modes:
 
-- **Multiplayer (Klient-Server)**: Jeden hráč založí server (`ChessServer`), který běží na pozadí a přijímá připojení. Po připojení dvou klientů (`NetworkClient`) se vytvoří izolovaná `GameSession`, která komunikuje s hráči pomocí třídy `ClientHandler` a posílá jim zprávy (`Message`) o stavu hry.
+- **Multiplayer (Client-Server)**: One player hosts a server (`ChessServer`), which runs in the background and accepts connections. Once two clients (`NetworkClient`) connect, an isolated `GameSession` is created, which communicates with players via the `ClientHandler` class and sends them messages (`Message`) about the game state.
 
-- **Lokální hra**: Dva hráči (`Player`) hrají na jednom počítači, střídají se po tazích a řídí je přímo lokální instance `GameControlleru`.
+- **Local game**: Two players (`Player`) play on a single computer, taking turns, managed directly by a local instance of `GameController`.
 
-### Herní deska a prvky
+### Game Board and Elements
 
-Základním prvkem je `Board` představující mřížku obsahující instance figurek. Všechny figurky dědí z abstraktní třídy `Piece` a implementují vlastní metodu `getLegalMoves()`:
+The fundamental element is the `Board` representing a grid containing instances of pieces. All pieces inherit from the abstract class `Piece` and implement their own `getLegalMoves()` method:
 
-- **Král (`King`)**: 1 pole libovolným směrem + rošáda.
+- **King (`King`)**: 1 square in any direction + castling.
 
-- **Dáma (`Queen`)**: Libovolný počet polí vodorovně, svisle nebo diagonálně.
+- **Queen (`Queen`)**: Any number of squares horizontally, vertically, or diagonally.
 
-- **Věž (`Rook`)**: Libovolný počet polí vodorovně nebo svisle.
+- **Rook (`Rook`)**: Any number of squares horizontally or vertically.
 
-- **Střelec (`Bishop`)**: Libovolný počet polí diagonálně.
+- **Bishop (`Bishop`)**: Any number of squares diagonally.
 
-- **Kůň (`Knight`)**: Skok do tvaru "L".
+- **Knight (`Knight`)**: Moves in an "L" shape.
 
-- **Pěšec (`Pawn`)**: 1 pole vpřed, braní diagonálně + proměna.
+- **Pawn (`Pawn`)**: 1 square forward, captures diagonally + promotion.
 
-### Způsob načítání a ukládání
+### Loading and Saving Mechanism
 
-Uživatel bude moci lokální hru kdykoliv pozastavit a její stav uložit na disk do formátu JSON. Do souboru se bude ukládat aktuální rozložení všech figurek na desce, historie tahů a aktuální stav, kdo je na tahu. Při spuštění aplikace půjde uložený soubor vybrat přes nativní `FileChooser` a rozehranou partii načíst.
+The user will be able to pause a local game at any time and save its state to disk in JSON format. The file will store the current layout of all pieces on the board, move history, and the current turn state. Upon launching the application, the saved file can be selected via a native `FileChooser` to resume the game in progress.
 
-## Ovládání a UI (JavaFX)
+### Controls and UI (JavaFX)
+#### Main Game Screen
 
-### Hlavní herní obrazovka
+The main window (`ChessApp`) will be divided into two parts:
 
-Hlavní okno (`ChessApp`) bude rozděleno na dvě části:
+- **Left/Main Section (`BoardView`)**: The game board itself. Upon clicking a player's own piece, the game will graphically highlight all target squares to which a valid move can be made in that turn (visualization of Move).
 
-- **Levá/Hlavní část (`BoardView`)**: Samotná herní deska. Po kliknutí na vlastní figurku hra graficky zvýrazní všechna cílová pole, na která lze v daném kole platně táhnout (vizualizace `Move`).
-
-- **Pravý panel**: Bude zobrazovat, kdo je aktuálně na tahu, historii tahů, stav hry (`GameStatus`) a tlačítka pro vzdání se nebo nabídku remízy:
+- **Right Panel**: Will display whose turn it is, move history, game state (`GameStatus`), and buttons to resign or offer a draw:
 
 ```
 ┌──────────────────────────────────────────────┐
 │           CHESS - Multiplayer                │
-├─────────────────────┬───────────────────────-┤
-│                     │  Hráč: bílý (vy)       │
+├─────────────────────┬────────────────────────┤
+│                     │  Player: White (You)   │
 │                     │                        │
-│                     │───────────────────────-│
-│    Šachovnice       │  Historie tahů:        │
+│                     │────────────────────────│
+│    Chessboard       │  Move History:         │
 │    8x8              │  1. e4  e5             │
-│    (interaktivní)   │  2. Nf3 Nc6            │
+│    (interactive)    │  2. Nf3 Nc6            │
 │                     │  3. Bb5 ...            │
-│                     │───────────────────────-│
-│                     │  [Vzdát]  [Remíza]     │
-│                     │  Soupeř: černý         │
-│                     │  Čas: 08:15            │
-├─────────────────────┴───────────────────────-┤
-│  Status: Na tahu je bílý                     │
-└─────────────────────────────────────────────-┘
+│                     │────────────────────────│
+│                     │  [Resign]  [Draw]      │
+│                     │  Opponent: Black       │
+│                     │  Time: 08:15           │
+├─────────────────────┴────────────────────────┤
+│  Status: White's turn                        │
+└──────────────────────────────────────────────┘
 ```
 
-### Úvodní obrazovka / Lobby
+#### Start Screen/ Lobbby
 
 ```
 ┌────────────────────────────────┐
 │     ♚  CHESS  ♚                │
 │                                │
-│   [ Lokální hra ]              │
-│   [ Připojit se k serveru ]    │
-│   [ Nastavení ]                │
+│   [ Local Game ]               │
+│   [ Connect to Server ]        │
+│   [ Settings ]                 │
 │                                │
 │   ┌────────────────────────┐   │
 │   │ IP:   [192.168.1.1  ]  │   │
 │   │ Port: [12345        ]  │   │
-│   │ Jméno:[Martin       ]  │   │
-│   │ [   Připojit   ]       │   │
+│   │ Name: [Martin       ]  │   │
+│   │ [   Connect    ]       │   │
 │   └────────────────────────┘   │
 │                                │
 └────────────────────────────────┘
