@@ -1,11 +1,10 @@
 from blockworld import BlockWorldEnv
 import random
+import time
 
 class QLearning():
-	# don't modify the methods' signatures!
 	def __init__(self, env: BlockWorldEnv):
 		self.env = env
-		# Q-table: dict mapping (state_conf, goal_conf) -> {action: q_value}
 		self.Q = {}
 
 	def _get_q(self, state_key, action):
@@ -22,11 +21,9 @@ class QLearning():
 		return max(self._get_q(state_key, a) for a in actions)
 
 	def _state_key(self, s):
-		"""Create a hashable key from (state, goal) tuple."""
 		return (s[0].get_state(), s[1].get_state())
 
 	def _get_on_relations(self, conf):
-		"""Extract 'on' relations fast using frozenset state configuration."""
 		on = {}
 		for stack in conf:
 			on[stack[-1]] = 0
@@ -35,13 +32,11 @@ class QLearning():
 		return on
 
 	def _count_correct(self, current_conf, goal_conf):
-		"""Count blocks whose 'on' relation matches the goal."""
 		current_on = self._get_on_relations(current_conf)
 		goal_on = self._get_on_relations(goal_conf)
 		return sum(1 for b in current_on if current_on[b] == goal_on.get(b, -1))
 
 	def _heuristic_action(self, s):
-		"""Goal-aware heuristic: pick action that places a block correctly."""
 		current_state, goal_state = s[0], s[1]
 		actions = current_state.get_actions()
 		current_conf = current_state.get_state()
@@ -49,26 +44,18 @@ class QLearning():
 		current_on = self._get_on_relations(current_conf)
 		goal_on = self._get_on_relations(goal_conf)
 
-		# First priority: find an action that directly places a block
-		# onto its goal target, but only if the target is already correct
-		# or is the ground
 		best_actions = []
 		good_actions = []
 		for (what, where) in actions:
 			if goal_on.get(what) == where:
-				# This action puts 'what' where it belongs in the goal
-				# Check if 'where' is already correctly placed (or ground)
 				if where == 0 or current_on.get(where) == goal_on.get(where):
 					best_actions.append((what, where))
 				else:
 					good_actions.append((what, where))
 
-		if best_actions:
-			return random.choice(best_actions)
-		if good_actions:
-			return random.choice(good_actions)
+		if best_actions: return random.choice(best_actions)
+		if good_actions: return random.choice(good_actions)
 
-		# Second priority: move a misplaced block off to ground to free things up
 		for (what, where) in actions:
 			if where == 0 and current_on.get(what) != goal_on.get(what):
 				return (what, where)
@@ -76,9 +63,9 @@ class QLearning():
 		return random.choice(actions)
 
 	def train(self):
-		alpha = 0.1        # learning rate
-		gamma = 0.99       # discount factor
-		num_episodes = 30000
+		alpha = 0.1
+		gamma = 0.99
+		num_episodes = 50000
 		max_steps = 50
 		epsilon_start = 1.0
 		epsilon_end = 0.05
@@ -92,15 +79,9 @@ class QLearning():
 				state_key = self._state_key(s)
 				actions = s[0].get_actions()
 
-				# Epsilon-greedy action selection
 				if random.random() < epsilon:
-					# Use heuristic to guide exploration sometimes to speed up learning
-					if random.random() < 0.5:
-						a = self._heuristic_action(s)
-					else:
-						a = random.choice(actions)
+					a = random.choice(actions)
 				else:
-					# Pick action with highest Q-value
 					best_q = self._get_q(state_key, actions[0])
 					best_a = actions[0]
 					for act in actions[1:]:
@@ -110,16 +91,13 @@ class QLearning():
 							best_a = act
 					a = best_a
 
-				# Take action
 				s_, r, done, truncated, _ = self.env.step(a)
 
-				# Reward shaping: bonus for correct placements
-				next_key = self._state_key(s_)
 				before = self._count_correct(state_key[0], state_key[1])
+				next_key = self._state_key(s_)
 				after = self._count_correct(next_key[0], next_key[1])
 				shaped_r = r + (after - before)
 
-				# Q-learning update
 				next_actions = s_[0].get_actions()
 				max_q_next = self._max_q(next_key, next_actions) if not done else 0.0
 
@@ -128,14 +106,12 @@ class QLearning():
 				self._set_q(state_key, a, new_q)
 
 				s = s_
-				if done:
-					break
+				if done: break
 
 	def act(self, s):
 		state_key = self._state_key(s)
 		actions = s[0].get_actions()
 
-		# If we have Q-values for this state, pick the best action
 		if state_key in self.Q:
 			best_q = self._get_q(state_key, actions[0])
 			best_a = actions[0]
@@ -146,22 +122,18 @@ class QLearning():
 					best_a = a
 			return best_a
 
-		# Fallback: goal-aware heuristic for unseen states
 		return self._heuristic_action(s)
 
 if __name__ == '__main__':
-	# Here you can test your algorithm. Stick with N <= 4
 	N = 4
-
 	env = BlockWorldEnv(N)
 	qlearning = QLearning(env)
 
-	# Train
+	start = time.time()
 	qlearning.train()
+	print(f"Train time: {time.time() - start:.2f}s")
 
-	# Evaluate
 	test_env = BlockWorldEnv(N)
-
 	test_problems = 1000
 	solved = 0
 	avg_steps = []
@@ -169,13 +141,10 @@ if __name__ == '__main__':
 	for test_id in range(test_problems):
 		s, _ = test_env.reset()
 		done = False
-
-		for step in range(50): 	# max 50 steps per problem
+		for step in range(50):
 			a = qlearning.act(s)
 			s_, r, done, truncated, _ = test_env.step(a)
-
 			s = s_
-
 			if done:
 				solved += 1
 				avg_steps.append(step + 1)
